@@ -30,6 +30,16 @@ int	mini_cd(char **args, t_env **env)
 			return (1);
 		}
 	}
+	else if (ft_strcmp(args[1], "-") == 0)
+	{
+		path = get_env_value("OLDPWD", *env);
+		if (!path)
+		{
+			ft_putendl_fd("minishell: cd: OLDPWD not set", 2);
+			return (1);
+		}
+		ft_putendl_fd(path, 1);
+	}
 	else
 		path = args[1];
 	if (chdir(path) != 0)
