@@ -1,6 +1,6 @@
 #include "easyshell.h"
 
-int g_signal_received = 0;
+int	g_signal_received = 0;
 
 static void	init_shell(t_shell *shell, char **envp)
 {
@@ -8,6 +8,8 @@ static void	init_shell(t_shell *shell, char **envp)
 	increment_shlvl(&shell->env);
 	shell->tokens = NULL;
 	shell->last_exit = 0;
+	shell->visual_mode = 0;
+	shell->skip_visual = 0;
 }
 
 static void	handle_comments(char *input)
@@ -34,42 +36,13 @@ static void	handle_comments(char *input)
 	}
 }
 
-static void	process_line(char *input, t_shell *shell)
-{
-	t_ast	*ast;
-	t_token	*tmp;
-
-	g_signal_received = 0;
-	handle_comments(input);
-	shell->tokens = tokenize(input);
-	if (shell->tokens)
-	{
-		if (check_syntax(shell->tokens))
-		{
-			expand_list(shell);
-			tmp = shell->tokens;
-			ast = parse_logic(&tmp, shell);
-			if (ast)
-			{
-				if (g_signal_received != SIGINT)
-					execute_ast(ast, shell);
-				free_ast(ast);
-			}
-		}
-		else
-			shell->last_exit = 2;
-		free_tokens(shell->tokens);
-		shell->tokens = NULL;
-	}
-}
-
 static char	*get_input(void)
 {
 	char	*input;
 	int		len;
 
 	if (isatty(STDIN_FILENO))
-		return (readline("minishell$ "));
+		return (readline("easyshell$ "));
 	input = read_byte_by_byte();
 	if (input)
 	{
@@ -80,6 +53,43 @@ static char	*get_input(void)
 	return (input);
 }
 
+/* MUST BE ABOVE shell_loop */
+static void	process_line(char *input, t_shell *shell, int execute)
+{
+	t_ast	*ast;
+	t_token	*tmp;
+
+	g_signal_received = 0;
+	shell->skip_visual = 0;
+	handle_comments(input);
+	shell->tokens = tokenize(input);
+	if (shell->tokens)
+	{
+		if (check_syntax(shell->tokens))
+		{
+			tmp = shell->tokens;
+			ast = parse_logic(&tmp, shell);
+			if (ast)
+			{
+				/* 1. EXECUTE FIRST */
+				if (execute && g_signal_received != SIGINT)
+					execute_ast(ast, shell);
+				
+				/* 2. VISUALIZE SECOND (Now it has the exit codes!) */
+				if (shell->visual_mode && !shell->skip_visual)
+					draw_ast(ast, "", 0);
+				
+				free_ast(ast);
+			}
+		}
+		else
+			shell->last_exit = 2;
+		free_tokens(shell->tokens);
+		shell->tokens = NULL;
+	}
+}
+
+/* MUST BE BELOW process_line */
 static void	shell_loop(t_shell *shell)
 {
 	char	*input;
@@ -95,7 +105,10 @@ static void	shell_loop(t_shell *shell)
 		}
 		if (isatty(STDIN_FILENO) && *input)
 			add_history(input);
-		process_line(input, shell);
+		
+		/* Notice the , 1 at the end here! */
+		process_line(input, shell, 1); 
+		
 		free(input);
 	}
 }
@@ -104,11 +117,21 @@ int	main(int argc, char **argv, char **envp)
 {
 	t_shell	shell;
 
-	(void)argc;
-	(void)argv;
 	init_shell(&shell, envp);
 	setup_signals();
+
+	/* CLI TOOL MODE: ./easyshell --ast "command string" */
+	if (argc == 3 && ft_strcmp(argv[1], "--ast") == 0)
+	{
+		shell.visual_mode = 1;
+		process_line(argv[2], &shell, 0); /* 0 = Do not execute, just visualize */
+		free_env(shell.env);
+		return (0);
+	}
+
+	/* STANDARD SHELL MODE */
 	shell_loop(&shell);
+	
 	free_env(shell.env);
 	rl_clear_history();
 	return (shell.last_exit);

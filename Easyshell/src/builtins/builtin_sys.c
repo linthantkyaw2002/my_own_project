@@ -85,3 +85,10 @@ int	mini_echo(char **args)
 		write(1, "\n", 1);
 	return (0);
 }
+
+int	mini_clear(t_shell *sh)
+{
+	printf("\033[H\033[2J\033[3J");
+	sh->skip_visual = 1;
+	return (0);
+}

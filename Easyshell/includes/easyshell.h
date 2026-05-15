@@ -1,13 +1,13 @@
 #ifndef EASYSHELL_H
 # define EASYSHELL_H
 
+# include <stdio.h>
 # include <errno.h>
 # include <fcntl.h>
 # include <limits.h>
 # include <readline/history.h>
 # include <readline/readline.h>
 # include <signal.h>
-# include <stdio.h>
 # include <stdlib.h>
 # include <string.h>
 # include <sys/stat.h>
@@ -58,6 +58,8 @@ typedef struct s_shell
 	t_env			*env;
 	t_token			*tokens;
 	int				last_exit;
+	int				visual_mode;
+	int				skip_visual;
 }					t_shell;
 
 typedef struct s_expand
@@ -75,6 +77,8 @@ typedef struct s_cmd
 	int				infile;
 	int				outfile;
 	int				error;
+	pid_t			pid;         
+	int				exit_status; 
 	struct s_cmd	*next;
 }					t_cmd;
 
@@ -130,6 +134,7 @@ void	expand_list(t_shell *shell);
 char	*get_wildcard_matches(char *pattern);
 void    add_back(t_token **list, t_token *new);
 void    free_tokens(t_token *list);
+void	expand_cmd_args(t_cmd *cmd, t_shell *sh);
 
 /* --- Parser --- */
 t_ast	*new_ast_node(t_node_type type);
@@ -152,7 +157,7 @@ void	handle_redirection(t_cmd *cmd, t_token **tokens, t_shell *shell);
 int		read_heredoc(char *delim, t_shell *sh, int q);
 
 /* --- Builtins --- */
-int		is_builtin(char **args);
+int		is_builtin(char **args, t_shell *sh);
 int		exe_builtin(char **args, t_shell *sh);
 int		mini_pwd(void);
 int		mini_cd(char **args, t_env **env);
@@ -161,5 +166,10 @@ int		mini_unset(char **args, t_env **env);
 int		mini_export(char **args, t_env **env);
 int		mini_echo(char **args);
 int		mini_exit(char **args, t_shell *sh);
+int 	mini_visual(char **args, t_shell *sh);
+int 	mini_ls(char **args);
+int		mini_clear(t_shell *sh);
 
+/* --- Renderer --- */
+void	draw_ast(t_ast *node, char *prefix, int is_left);
 #endif

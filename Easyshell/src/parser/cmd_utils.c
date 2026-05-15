@@ -14,9 +14,11 @@ t_cmd	*new_cmd(void)
 	if (!cmd)
 		return (NULL);
 	cmd->args = NULL;
-	cmd->infile = -1;
-	cmd->outfile = -1;
+	cmd->infile = -2;
+	cmd->outfile = -2;
 	cmd->error = 0;
+	cmd->pid = -1;         /* Initialize to -1 */
+	cmd->exit_status = 0;  /* Initialize to 0 (Success) */
 	cmd->next = NULL;
 	return (cmd);
 }

@@ -80,3 +80,27 @@ char	*expand_string(char *str, t_shell *shell)
 	}
 	return (res);
 }
+
+/* Bridge function to expand the final command arguments right before exec */
+void	expand_cmd_args(t_cmd *cmd, t_shell *sh)
+{
+	int		i;
+	char	*expanded;
+
+	i = 0;
+	while (cmd->args && cmd->args[i])
+	{
+		if (ft_strchr(cmd->args[i], '$'))
+		{
+			expanded = expand_string(cmd->args[i], sh);
+			free(cmd->args[i]);
+			/* Wrap the expanded result in Cyan color codes! */
+			cmd->args[i] = ft_strjoin("\033[1;36m", expanded);
+			char *tmp = ft_strjoin(cmd->args[i], "\033[0m");
+			free(cmd->args[i]);
+			free(expanded);
+			cmd->args[i] = tmp;
+		}
+		i++;
+	}
+}
