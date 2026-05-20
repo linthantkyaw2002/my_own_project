@@ -4,28 +4,28 @@
  * POSIX-1003.2 exit-code compliance tests for Easyshell builtins.
  *
  * Compile (from the Easyshell/ directory):
- *   cc -Wall -Wextra -o test_posix \
- *       test_posix_exit_codes.c \
- *       src/builtins/builtin_sys.c  \
- *       src/builtins/builtin_dir.c  \
- *       src/builtins/builtin_env.c  \
- *       src/builtins/builtin_hub.c  \
- *       src/env/env_core.c          \
- *       src/env/env_ops.c           \
- *       src/utils/string_utils.c    \
- *       libft/libft.a               \
- *       -Iincludes -Ilibft -lreadline
- *   ./test_posix
+ * cc -Wall -Wextra -o test_posix \
+ * test_posix_exit_codes.c \
+ * src/builtins/builtin_sys.c  \
+ * src/builtins/builtin_dir.c  \
+ * src/builtins/builtin_env.c  \
+ * src/builtins/builtin_hub.c  \
+ * src/env/env_core.c          \
+ * src/env/env_ops.c           \
+ * src/utils/string_utils.c    \
+ * libft/libft.a               \
+ * -Iincludes -Ilibft -lreadline
+ * ./test_posix
  *
  * POSIX references used throughout:
- *   - exit utility:   POSIX.1-2017 §2.8.2, §2.9.1
- *   - cd utility:     POSIX.1-2017 "cd" built-in
- *   - echo utility:   POSIX.1-2017 "echo" built-in
- *   - export/unset:   POSIX.1-2017 "export" / "unset" built-ins
- *   - dot (.):        POSIX.1-2017 "." built-in
- *   - Signal codes:   exit status = 128 + signal number
- *   - Command not found: exit 127
- *   - Not executable:    exit 126
+ * - exit utility:   POSIX.1-2017 §2.8.2, §2.9.1
+ * - cd utility:     POSIX.1-2017 "cd" built-in
+ * - echo utility:   POSIX.1-2017 "echo" built-in
+ * - export/unset:   POSIX.1-2017 "export" / "unset" built-ins
+ * - dot (.):        POSIX.1-2017 "." built-in
+ * - Signal codes:   exit status = 128 + signal number
+ * - Command not found: exit 127
+ * - Not executable:    exit 126
  */
 
 #include <assert.h>
@@ -43,7 +43,7 @@
 int g_signal_received = 0;
 
 /* ------------------------------------------------------------------ */
-/*  Helpers                                                             */
+/* Helpers                                                             */
 /* ------------------------------------------------------------------ */
 
 /* Build a minimal t_shell with last_exit set and a tiny env list.    */
@@ -108,8 +108,8 @@ static int g_fail = 0;
     } while (0)
 
 /* ------------------------------------------------------------------ */
-/*  1. mini_echo                                                        */
-/*     POSIX: echo always exits 0.                                     */
+/* 1. mini_echo                                                        */
+/* POSIX: echo always exits 0.                                     */
 /* ------------------------------------------------------------------ */
 static void test_echo(void)
 {
@@ -178,8 +178,8 @@ static void test_echo(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  2. mini_cd                                                          */
-/*     POSIX: success → 0; any error → >0 (typically 1).              */
+/* 2. mini_cd                                                          */
+/* POSIX: success → 0; any error → >0 (typically 1).              */
 /* ------------------------------------------------------------------ */
 static void test_cd(void)
 {
@@ -229,8 +229,8 @@ static void test_cd(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  3. mini_export                                                      */
-/*     POSIX: success → 0; invalid identifier → 1.                    */
+/* 3. mini_export                                                      */
+/* POSIX: success → 0; invalid identifier → 1.                    */
 /* ------------------------------------------------------------------ */
 static void test_export(void)
 {
@@ -266,8 +266,8 @@ static void test_export(void)
     }
 
     /* 3.5  Mixed: one valid, one invalid → 1 overall
-     *      POSIX: utility shall write a diagnostic for each invalid
-     *             name but shall not abort; final status is non-zero. */
+     * POSIX: utility shall write a diagnostic for each invalid
+     * name but shall not abort; final status is non-zero. */
     {
         char *args[] = {"export", "GOOD=1", "3BAD=2", NULL};
         int ret = mini_export(args, &sh.env);
@@ -285,8 +285,8 @@ static void test_export(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  4. mini_unset                                                       */
-/*     POSIX: always exits 0 (errors are non-fatal).                   */
+/* 4. mini_unset                                                       */
+/* POSIX: always exits 0 (errors are non-fatal).                   */
 /* ------------------------------------------------------------------ */
 static void test_unset(void)
 {
@@ -318,12 +318,12 @@ static void test_unset(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  5. mini_exit                                                        */
-/*     POSIX §2.8.2:                                                   */
-/*       exit         → last exit status                               */
-/*       exit N       → N % 256                                        */
-/*       exit N M     → 1  (too many arguments, shell continues)       */
-/*       exit non-num → 2  (numeric argument required)                 */
+/* 5. mini_exit                                                        */
+/* POSIX §2.8.2:                                                   */
+/* exit         → last exit status                               */
+/* exit N       → N % 256                                        */
+/* exit N M     → 1  (too many arguments, shell continues)       */
+/* exit non-num → 2  (numeric argument required)                 */
 /* ------------------------------------------------------------------ */
 static void test_exit(void)
 {
@@ -442,8 +442,8 @@ static void test_exit(void)
     }
 
     /* 5.8  exit with non-numeric argument → 2
-     *      POSIX: "If the argument is not a valid unsigned integer,
-     *              the exit status shall be unspecified" – bash/dash use 2. */
+     * POSIX: "If the argument is not a valid unsigned integer,
+     * the exit status shall be unspecified" – bash/dash use 2. */
     {
         t_shell sh = make_shell(0);
         pid_t pid = fork();
@@ -460,8 +460,8 @@ static void test_exit(void)
     }
 
     /* 5.9  exit with too many arguments → returns 1, does NOT exit
-     *      POSIX: "If more than one argument is given, the results
-     *              are unspecified" – bash returns 1 and stays alive. */
+     * POSIX: "If more than one argument is given, the results
+     * are unspecified" – bash returns 1 and stays alive. */
     {
         t_shell sh = make_shell(0);
         /* Call directly (no fork) to verify the shell is still alive. */
@@ -472,9 +472,9 @@ static void test_exit(void)
     }
 
     /* 5.10 exit -1 → (-1 % 256) in C = implementation-defined for
-     *       negative numbers; the implementation does ft_atoi then % 256.
-     *       ft_atoi("-1") = -1; -1 % 256 in C99 = -1, but cast to
-     *       unsigned char → 255.  We test what the code actually does. */
+     * negative numbers; the implementation does ft_atoi then % 256.
+     * ft_atoi("-1") = -1; -1 % 256 in C99 = -1, but cast to
+     * unsigned char → 255.  We test what the code actually does. */
     {
         t_shell sh = make_shell(0);
         pid_t pid = fork();
@@ -502,8 +502,8 @@ static void test_exit(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  6. dot (.) built-in                                                 */
-/*     POSIX: if filename argument is missing → exit 2.               */
+/* 6. dot (.) built-in                                                 */
+/* POSIX: if filename argument is missing → exit 2.               */
 /* ------------------------------------------------------------------ */
 static void test_dot(void)
 {
@@ -521,10 +521,10 @@ static void test_dot(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  7. Signal exit codes  (128 + signo)                                */
-/*     POSIX §2.8.2: "If a command is terminated by a signal, the     */
-/*     exit status shall be greater than 128."                         */
-/*     Linux convention (and bash): 128 + signal number.              */
+/* 7. Signal exit codes  (128 + signo)                                */
+/* POSIX §2.8.2: "If a command is terminated by a signal, the     */
+/* exit status shall be greater than 128."                         */
+/* Linux convention (and bash): 128 + signal number.              */
 /* ------------------------------------------------------------------ */
 static void test_signal_exit_codes(void)
 {
@@ -569,13 +569,13 @@ static void test_signal_exit_codes(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  8. Command-not-found / not-executable codes                        */
-/*     These are produced by handle_exec_error() and validated here    */
-/*     by examining the constants the function exits with.             */
-/*                                                                     */
-/*     POSIX §2.8.2:                                                   */
-/*       127 – command not found                                       */
-/*       126 – command found but not executable                        */
+/* 8. Command-not-found / not-executable codes                        */
+/* These are produced by handle_exec_error() and validated here    */
+/* by examining the constants the function exits with.             */
+/* */
+/* POSIX §2.8.2:                                                   */
+/* 127 – command not found                                       */
+/* 126 – command found but not executable                        */
 /* ------------------------------------------------------------------ */
 static void test_exec_error_codes(void)
 {
@@ -616,8 +616,8 @@ static void test_exec_error_codes(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  9. $? propagation                                                   */
-/*     POSIX §2.8.2: last_exit must reflect the most recent pipeline.  */
+/* 9. $? propagation                                                   */
+/* POSIX §2.8.2: last_exit must reflect the most recent pipeline.  */
 /* ------------------------------------------------------------------ */
 static void test_last_exit_propagation(void)
 {
@@ -684,12 +684,12 @@ static void test_last_exit_propagation(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  10. && / || short-circuit exit codes                               */
-/*      POSIX §2.9.3:                                                  */
-/*        cmd1 && cmd2 : run cmd2 only if cmd1 exits 0;               */
-/*                       $? = exit status of last command run.         */
-/*        cmd1 || cmd2 : run cmd2 only if cmd1 exits non-zero;        */
-/*                       $? = exit status of last command run.         */
+/* 10. && / || short-circuit exit codes                               */
+/* POSIX §2.9.3:                                                  */
+/* cmd1 && cmd2 : run cmd2 only if cmd1 exits 0;               */
+/* $? = exit status of last command run.         */
+/* cmd1 || cmd2 : run cmd2 only if cmd1 exits non-zero;        */
+/* $? = exit status of last command run.         */
 /* ------------------------------------------------------------------ */
 static void test_and_or_exit_codes(void)
 {
@@ -768,8 +768,8 @@ static void test_and_or_exit_codes(void)
     {
         /*
          * Build:  NODE_AND
-         *           left:  NODE_PIPELINE  → "true"  (exit 0)
-         *           right: NODE_PIPELINE  → "false" (exit 1)
+         * left:  NODE_PIPELINE  → "true"  (exit 0)
+         * right: NODE_PIPELINE  → "false" (exit 1)
          * Expected last_exit: 1  (right ran and failed)
          */
         pid_t pid = fork();
@@ -778,20 +778,20 @@ static void test_and_or_exit_codes(void)
         {
             t_shell sh = make_shell(0);
 
-            /* left pipeline: /bin/true */
+            /* left pipeline: /usr/bin/true (macOS path update) */
             t_cmd *left_cmd = new_cmd();
             left_cmd->args = malloc(sizeof(char *) * 2);
-            left_cmd->args[0] = strdup("/bin/true");
+            left_cmd->args[0] = strdup("/usr/bin/true");
             left_cmd->args[1] = NULL;
             left_cmd->infile = -1; left_cmd->outfile = -1;
 
             t_ast *left_node = new_ast_node(NODE_PIPELINE);
             left_node->pipeline = left_cmd;
 
-            /* right pipeline: /bin/false */
+            /* right pipeline: /usr/bin/false (macOS path update) */
             t_cmd *right_cmd = new_cmd();
             right_cmd->args = malloc(sizeof(char *) * 2);
-            right_cmd->args[0] = strdup("/bin/false");
+            right_cmd->args[0] = strdup("/usr/bin/false");
             right_cmd->args[1] = NULL;
             right_cmd->infile = -1; right_cmd->outfile = -1;
 
@@ -819,7 +819,7 @@ static void test_and_or_exit_codes(void)
 
             t_cmd *left_cmd = new_cmd();
             left_cmd->args = malloc(sizeof(char *) * 2);
-            left_cmd->args[0] = strdup("/bin/false");
+            left_cmd->args[0] = strdup("/usr/bin/false");
             left_cmd->args[1] = NULL;
             left_cmd->infile = -1; left_cmd->outfile = -1;
             t_ast *left_node = new_ast_node(NODE_PIPELINE);
@@ -827,7 +827,7 @@ static void test_and_or_exit_codes(void)
 
             t_cmd *right_cmd = new_cmd();
             right_cmd->args = malloc(sizeof(char *) * 2);
-            right_cmd->args[0] = strdup("/bin/true");
+            right_cmd->args[0] = strdup("/usr/bin/true");
             right_cmd->args[1] = NULL;
             right_cmd->infile = -1; right_cmd->outfile = -1;
             t_ast *right_node = new_ast_node(NODE_PIPELINE);
@@ -846,9 +846,9 @@ static void test_and_or_exit_codes(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  11. Pipeline exit code                                              */
-/*      POSIX §2.9.2: exit status of a pipeline = exit status of      */
-/*      the LAST command in the pipeline.                              */
+/* 11. Pipeline exit code                                              */
+/* POSIX §2.9.2: exit status of a pipeline = exit status of      */
+/* the LAST command in the pipeline.                              */
 /* ------------------------------------------------------------------ */
 static void test_pipeline_exit_code(void)
 {
@@ -864,13 +864,13 @@ static void test_pipeline_exit_code(void)
 
             t_cmd *cmd1 = new_cmd();
             cmd1->args = malloc(sizeof(char *) * 2);
-            cmd1->args[0] = strdup("/bin/true");
+            cmd1->args[0] = strdup("/usr/bin/true");
             cmd1->args[1] = NULL;
             cmd1->infile = -1; cmd1->outfile = -1;
 
             t_cmd *cmd2 = new_cmd();
             cmd2->args = malloc(sizeof(char *) * 2);
-            cmd2->args[0] = strdup("/bin/false");
+            cmd2->args[0] = strdup("/usr/bin/false");
             cmd2->args[1] = NULL;
             cmd2->infile = -1; cmd2->outfile = -1;
 
@@ -893,13 +893,13 @@ static void test_pipeline_exit_code(void)
 
             t_cmd *cmd1 = new_cmd();
             cmd1->args = malloc(sizeof(char *) * 2);
-            cmd1->args[0] = strdup("/bin/false");
+            cmd1->args[0] = strdup("/usr/bin/false");
             cmd1->args[1] = NULL;
             cmd1->infile = -1; cmd1->outfile = -1;
 
             t_cmd *cmd2 = new_cmd();
             cmd2->args = malloc(sizeof(char *) * 2);
-            cmd2->args[0] = strdup("/bin/true");
+            cmd2->args[0] = strdup("/usr/bin/true");
             cmd2->args[1] = NULL;
             cmd2->infile = -1; cmd2->outfile = -1;
 
@@ -914,9 +914,9 @@ static void test_pipeline_exit_code(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  12. Redirect failure exit code                                      */
-/*      POSIX §2.8.1: if a redirection fails, the command shall exit   */
-/*      with a non-zero status (effectively 1 in most shells).         */
+/* 12. Redirect failure exit code                                      */
+/* POSIX §2.8.1: if a redirection fails, the command shall exit   */
+/* with a non-zero status (effectively 1 in most shells).         */
 /* ------------------------------------------------------------------ */
 static void test_redirect_failure(void)
 {
@@ -972,10 +972,10 @@ static void test_redirect_failure(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  13. cd edge cases                                                   */
-/*      POSIX §cd:                                                      */
-/*        cd -       → go to $OLDPWD, print it, exit 0                */
-/*        cd <file>  → exit 1 (not a directory)                        */
+/* 13. cd edge cases                                                   */
+/* POSIX §cd:                                                      */
+/* cd -       → go to $OLDPWD, print it, exit 0                */
+/* cd <file>  → exit 1 (not a directory)                        */
 /* ------------------------------------------------------------------ */
 static void test_cd_edge_cases(void)
 {
@@ -1025,10 +1025,10 @@ static void test_cd_edge_cases(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  14. exit with leading-plus argument                                 */
-/*      is_numeric() accepts '+', so exit +0 should → 0.              */
-/*      POSIX only defines non-negative integers; the + prefix is an   */
-/*      extension. Verify the implementation is at least self-consistent*/
+/* 14. exit with leading-plus argument                                 */
+/* is_numeric() accepts '+', so exit +0 should → 0.              */
+/* POSIX only defines non-negative integers; the + prefix is an   */
+/* extension. Verify the implementation is at least self-consistent*/
 /* ------------------------------------------------------------------ */
 static void test_exit_plus(void)
 {
@@ -1088,10 +1088,10 @@ static void test_exit_plus(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  15. Background (&) exit code                                        */
-/*      POSIX §2.9.3.1: "If a command is run asynchronously, the exit  */
-/*      status of the command substitution shall be 0."                 */
-/*      i.e. the shell sets $? = 0 immediately, without waiting.       */
+/* 15. Background (&) exit code                                        */
+/* POSIX §2.9.3.1: "If a command is run asynchronously, the exit  */
+/* status of the command substitution shall be 0."                 */
+/* i.e. the shell sets $? = 0 immediately, without waiting.       */
 /* ------------------------------------------------------------------ */
 static void test_background_exit_code(void)
 {
@@ -1107,7 +1107,7 @@ static void test_background_exit_code(void)
 
             t_cmd *bg_cmd = new_cmd();
             bg_cmd->args = malloc(sizeof(char *) * 2);
-            bg_cmd->args[0] = strdup("/bin/false"); /* would exit 1 */
+            bg_cmd->args[0] = strdup("/usr/bin/false"); /* would exit 1 */
             bg_cmd->args[1] = NULL;
             bg_cmd->infile  = -1;
             bg_cmd->outfile = -1;
@@ -1129,7 +1129,7 @@ static void test_background_exit_code(void)
 }
 
 /* ------------------------------------------------------------------ */
-/*  main                                                                */
+/* main                                                                */
 /* ------------------------------------------------------------------ */
 int main(void)
 {

@@ -172,4 +172,8 @@ int		mini_clear(t_shell *sh);
 
 /* --- Renderer --- */
 void	draw_ast(t_ast *node, char *prefix, int is_left);
+
+/* --- Tab Completion --- */
+char    **easyshell_completion(const char *text, int start, int end);
+char    *command_generator(const char *text, int state);
 #endif

@@ -49,12 +49,12 @@ int	mini_exit(char **args, t_shell *sh)
 		clean_and_exit(sh, sh->last_exit);
 	if (!is_numeric(args[1]))
 	{
-		ft_putendl_fd("minishell: exit: numeric argument required", 2);
-		clean_and_exit(sh, 2);
+		ft_putendl_fd("easyshell: exit: numeric argument required", 2);
+		clean_and_exit(sh, 2); /* Set back to standard POSIX environment 2 */
 	}
 	if (args[2])
 	{
-		ft_putendl_fd("minishell: exit: too many arguments", 2);
+		ft_putendl_fd("easyshell: exit: too many arguments", 2);
 		return (1);
 	}
 	status = ft_atoi(args[1]);

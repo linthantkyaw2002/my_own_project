@@ -34,8 +34,9 @@ static void run_child(t_cmd *cmd, t_shell *sh, int prev_fd, int p_fd[2])
     signal(SIGINT, SIG_DFL);
     signal(SIGQUIT, SIG_DFL);
     handle_io(cmd, prev_fd, p_fd);
-	if (cmd->args)
-        expand_cmd_args(cmd, sh);
+
+    /* REMOVED: expand_cmd_args(cmd, sh); to prevent POSIX-violating double expansion */
+
     if (!cmd->args || !cmd->args[0])
         exit(0);
     if (is_builtin(cmd->args, sh))
@@ -118,12 +119,21 @@ void    execute_commands(t_cmd *cmd, t_shell *sh)
 {
     int     fd[2];
     t_cmd   *head;
+    t_cmd   *curr;
 
     if (!cmd)
         return ;
     head = cmd;
-    if (cmd->args)
-        expand_cmd_args(cmd, sh);
+
+    /* POSIX Standard Compliance: Expand ALL commands in the pipeline exactly ONCE */
+    curr = cmd;
+    while (curr)
+    {
+        if (curr->args)
+            expand_cmd_args(curr, sh);
+        curr = curr->next;
+    }
+
     if (!cmd->next && cmd->error == 1)
     {
         sh->last_exit = 1;

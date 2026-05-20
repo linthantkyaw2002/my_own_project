@@ -109,7 +109,7 @@ void	handle_exec_error(char *path, char *cmd_name)
 		print_error_exit(cmd_name, "No such file or directory", 127);
 	stat(path, &path_stat);
 	if (S_ISDIR(path_stat.st_mode))
-		print_error_exit(cmd_name, "Is a directory", 126);
+		print_error_exit(cmd_name, "is a directory", 126);
 	if (access(path, X_OK) != 0)
 		print_error_exit(cmd_name, "Permission denied", 126);
 	if (errno == ENOEXEC)

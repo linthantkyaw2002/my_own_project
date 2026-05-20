@@ -69,6 +69,8 @@ char	*strip_quotes(char *str)
 	char	*res;
 	int		i;
 	int		j;
+	int		in_single;
+	int		in_double;
 
 	if (!str)
 		return (NULL);
@@ -77,16 +79,32 @@ char	*strip_quotes(char *str)
 		return (NULL);
 	i = 0;
 	j = 0;
+	in_single = 0;
+	in_double = 0;
 	while (str[i])
 	{
-		if (str[i] != '\'' && str[i] != '\"')
-			res[j++] = str[i];
-		i++;
+		/* If we hit a single quote and we aren't locked inside double quotes */
+		if (str[i] == '\'' && !in_double)
+		{
+			in_single = !in_single;
+			i++; /* Skip stripping this outer quote character */
+		}
+		/* If we hit a double quote and we aren't locked inside single quotes */
+		else if (str[i] == '"' && !in_single)
+		{
+			in_double = !in_double;
+			i++; /* Skip stripping this outer quote character */
+		}
+		/* It's a literal character or a protected nested quote character */
+		else
+		{
+			res[j++] = str[i++];
+		}
 	}
 	res[j] = '\0';
 	return (res);
 }
-
+ 
 int	ft_isspace(char c)
 {
 	return (c == ' ' || c == '\t' || c == '\n'

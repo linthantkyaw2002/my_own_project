@@ -46,7 +46,8 @@ BUILTINS	= builtins/builtin_hub.c builtins/builtin_dir.c \
 
 RENDER   = render/render_ast.c
 
-SRCS		= $(addprefix $(SRC_DIR)/, $(CORE) $(UTILS) $(ENV) $(LEXER) $(PARSER) $(EXEC) $(BUILTINS) $(RENDER))
+SRCS		= $(addprefix $(SRC_DIR)/, $(CORE) $(UTILS) $(ENV) $(LEXER) $(PARSER) $(EXEC) $(BUILTINS) $(RENDER)) \
+			src/ui/tab_completion.c \
 
 OBJS		= $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
 

@@ -52,45 +52,6 @@ static char	*process_expand_char(char *res, t_expand *exp)
 	return (append_char(res, exp->str[exp->i++]));
 }
 
-/*
-** expand_tilde: POSIX tilde expansion.
-**
-** Rules implemented:
-**   ~          → $HOME
-**   ~/foo      → $HOME/foo
-**   ~word      → treated literally (user tilde not supported, matches bash)
-**
-** Expansion only happens when:
-**   - the token starts with '~'
-**   - the '~' is NOT inside any quotes (checked by the caller via has_quotes
-**     on the leading character — if the whole token has no quotes we expand,
-**     matching the POSIX requirement that quoted tildes are not expanded)
-**
-** Returns a newly malloc'd string; caller must free.
-** Returns NULL only on allocation failure.
-*/
-static char	*expand_tilde(char *str, t_shell *shell)
-{
-	char	*home;
-	char	*rest;
-	char	*tmp;
-	char	*result;
-
-	if (str[0] != '~')
-		return (ft_strdup(str));
-	/* Only expand bare ~ or ~/... — not ~username */
-	if (str[1] != '\0' && str[1] != '/')
-		return (ft_strdup(str));
-	home = get_env_value("HOME", shell->env);
-	if (!home)
-		return (ft_strdup(str));   /* HOME unset: leave literal, per POSIX */
-	rest = str + 1;                /* skip the '~'; rest is "" or "/foo" */
-	tmp = ft_strdup(home);
-	if (!tmp)
-		return (NULL);
-	result = append_str(tmp, rest);
-	return (result);
-}
 
 char	*expand_string(char *str, t_shell *shell)
 {
@@ -100,17 +61,6 @@ char	*expand_string(char *str, t_shell *shell)
 
 	if (!str)
 		return (NULL);
-	/* Tilde expansion: only when unquoted and leading char is ~ */
-	if (str[0] == '~' && !has_quotes(str))
-	{
-		tmp = expand_tilde(str, shell);
-		if (!tmp)
-			return (NULL);
-		/* Now run dollar expansion on the tilde-expanded result */
-		res = expand_string(tmp, shell);
-		free(tmp);
-		return (res);
-	}
 	exp.str = str;
 	exp.i = 0;
 	exp.in_single = 0;
@@ -131,21 +81,80 @@ char	*expand_string(char *str, t_shell *shell)
 	return (res);
 }
 
-/* Bridge function to expand the final command arguments right before exec */
-void	expand_cmd_args(t_cmd *cmd, t_shell *sh)
+static char *expand_tilde(char *arg, t_shell *sh)
 {
-	int		i;
-	char	*expanded;
+    char *home;
+    char *expanded;
 
-	i = 0;
-	while (cmd->args && cmd->args[i])
-	{
-		if (ft_strchr(cmd->args[i], '$') || cmd->args[i][0] == '~')
-		{
-			expanded = expand_string(cmd->args[i], sh);
-			free(cmd->args[i]);
-			cmd->args[i] = expanded;
-		}
-		i++;
-	}
+    // Trigger only if unquoted word starts with '~' and is standalone or followed by '/'
+    if (arg && arg[0] == '~' && (arg[1] == '\0' || arg[1] == '/'))
+    {
+        // Fetch HOME from your environment structure map
+        home = get_env_value("HOME", sh->env); 
+        if (!home)
+            return (strdup(arg)); // Fallback to literal if HOME is completely missing
+        
+        if (arg[1] == '\0')
+            return (strdup(home));
+            
+        // Handle path combinations like ~/src
+        expanded = ft_strjoin(home, arg + 1);
+        return (expanded);
+    }
+    return (strdup(arg));
+}
+
+/* Bridge function to expand the final command arguments right before exec */
+void    expand_cmd_args(t_cmd *cmd, t_shell *sh)
+{
+    int     i;
+    int     j;
+    char    *expanded;
+    int     had_quotes;
+    char    *tilde_resolved;
+    char    **new_args;
+
+    if (!cmd || !cmd->args)
+        return ;
+    
+    i = 0;
+    while (cmd->args[i])
+        i++;
+    new_args = malloc(sizeof(char *) * (i + 1));
+    if (!new_args)
+        return ;
+
+    i = 0;
+    j = 0;
+    while (cmd->args[i])
+    {
+        /* 1. Track quote properties on raw user input tokens */
+        had_quotes = has_quotes(cmd->args[i]);
+        
+        /* 2. Run POSIX Tilde expansion pass cleanly first */
+        tilde_resolved = expand_tilde(cmd->args[i], sh);
+        
+        /* 3. FIXED: Feed 'tilde_resolved' directly into expand_string 
+        ** to preserve the resolved $HOME path properties! */
+        expanded = expand_string(tilde_resolved, sh);
+        
+        /* Free raw parameter entries and our temporary tilde buffer */
+        free(cmd->args[i]);
+        free(tilde_resolved);
+        
+        /* 4. FIXED: Safe compact dropout block without leaking paths */
+        if (expanded && expanded[0] == '\0' && !had_quotes)
+        {
+            free(expanded);
+            i++;
+            continue ;
+        }
+        
+        new_args[j++] = expanded;
+        i++;
+    }
+    new_args[j] = NULL;
+    
+    free(cmd->args);
+    cmd->args = new_args;
 }
