@@ -41,13 +41,14 @@ Please report bugs, unexpected behavior, or suggestions to: linthantkyaw2002@gma
 ## Package Contents
 
 A beta release package normally includes:
-
+```
 flow-beta/
 ├── flow
 ├── install.sh
 ├── uninstall.sh
 ├── README.md
 └── LICENSE
+```
 
 | File           | Purpose                                        |
 |----------------|------------------------------------------------|
