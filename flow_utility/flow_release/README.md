@@ -15,7 +15,7 @@ Instead of typing the same sequence again and again, Flow lets you record it onc
 ---
 
 ## Project Information
-|-------------------|-------------------------------------|
+
 | Item              | Details                             |
 |-------------------|-------------------------------------|
 | Project Name      | Flow CLI Tool                       |
@@ -26,7 +26,7 @@ Instead of typing the same sequence again and again, Flow lets you record it onc
 | License           | Beta / Proprietary                  |
 | Supported Shells  | Bash, Zsh                           |
 | Supported Systems | macOS, Linux, WSL                   |
-|-------------------|-------------------------------------|
+
 ---
 
 ## Beta Notice
@@ -49,7 +49,6 @@ flow-beta/
 ├── README.md
 └── LICENSE
 
-|----------------|------------------------------------------------|
 | File           | Purpose                                        |
 |----------------|------------------------------------------------|
 | `flow`         | Main Flow executable.                          |
@@ -57,7 +56,7 @@ flow-beta/
 | `uninstall.sh` | Removes Flow and cleans installed files/hooks. |
 | `README.md`    | User guide and command documentation.          |
 | `LICENSE`      | Beta license and usage terms.                  |
-|----------------|------------------------------------------------|
+
 ---
 
 ## Table of Contents
