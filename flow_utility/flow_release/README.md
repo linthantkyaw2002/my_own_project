@@ -269,10 +269,11 @@ flow list
 ```
 
 Output:
+```
 📝 Current Flow Workspace [0]:
 [0] make
 [1] ./program
-
+```
 
 The workspace can be replayed directly with:
 
@@ -321,11 +322,11 @@ flow run test -l
 Flow uses zero-based indexes for command steps.
 
 Example:
-
+```
 [0] make
 [1] ./program
 [2] echo done
-
+```
 Valid indexes: 0, 1, 2
 
 Some commands also support:
@@ -366,7 +367,7 @@ flow delist 0, 2
 
 ## Command Summary
 
-|------------------------------------------------|------------------------------------------------------------|
+
 | Command                                        | Description                                                |
 |------------------------------------------------|------------------------------------------------------------|
 | `flow start`                                   | Start recording shell commands into the current workspace. |
@@ -397,7 +398,7 @@ flow delist 0, 2
 | `flow bin clear`                               | Permanently clear the recovery bin.                        |
 | `flow join <build1> <build2> <new_build>`      | Combine two saved builds into a new build.                 |
 | `flow copy <old_build> <new_build>`            | Copy a saved build into a new build.                       |
-|------------------------------------------------|------------------------------------------------------------|
+
 ---
 
 ## Full Command Reference
@@ -420,10 +421,10 @@ flow stop
 ```
 
 After this, the current workspace contains:
-
+```
 [0] make
 [1] ./program
-
+```
 Notes:
 
 - Flow commands are ignored during recording to prevent recursive workflows.
@@ -452,11 +453,11 @@ flow list
 ```
 
 Example output:
-
+```
 📝 Current Flow Workspace [0]:
 [0] echo hello
 [1] ls
-
+```
 
 ---
 
@@ -469,11 +470,11 @@ flow list build
 ```
 
 Example output:
-
+```
 📦 Saved Macro Builds:
 [•] test
 [•] demo
-
+```
 
 ---
 
@@ -486,11 +487,11 @@ flow list test
 ```
 
 Example output:
-
+```
 📋 Saved Build 'test':
 [0] make
 [1] ./program
-
+```
 ---
 
 ### `flow list bin`
@@ -502,11 +503,11 @@ flow list bin
 ```
 
 Example output:
-
+```
 ♻️ Archived Garbage Tracks in Recycling Bin (newest first):
 [0] old_build
 [1] demo_backup
-
+```
 
 Use this before restoring or permanently deleting removed builds.
 
@@ -541,11 +542,10 @@ flow run
 Example output:
 
 🚀 Running current flow workspace [0] completely...
-
+```
 Flow▶️ [0]: make
 Flow▶️ [1]: ./program
-
-
+```
 ---
 
 ### `flow run -l`
@@ -671,11 +671,11 @@ Example before:
 
 
 After:
-
+```
 [0] make
 [1] echo inserted
 [2] ./program
-
+```
 ---
 
 ### `flow insert <buildname> <index> "<cmd>"`
@@ -867,7 +867,8 @@ If the destination build already exists, Flow asks for confirmation before overw
 ## Storage Locations
 
 Flow uses local files and directories on your machine.
-|-----------------------------------|----------------------------------------------------|
+
+
 | Path                              | Purpose                                            |
 |-----------------------------------|----------------------------------------------------|
 | `/usr/local/bin/flow`             | Installed Flow executable.                         |
@@ -877,7 +878,7 @@ Flow uses local files and directories on your machine.
 | `/tmp/.flow_active_state`         | Recording state flag.                              |
 | `/tmp/.flow_recorded_path`        | Directory where recording started.                 |
 | `/tmp/.flow_execution_wrapper.sh` | Temporary replay script created during `flow run`. |
-|-----------------------------------|----------------------------------------------------|
+
 ---
 
 ## Safety Notes
