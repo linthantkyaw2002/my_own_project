@@ -15,29 +15,52 @@ static void load_build_to_workspace(const char *src_path)
     char ch;
     while ((ch = fgetc(src)) != EOF)
         fputc(ch, dst);
-        
     fclose(src);
     fclose(dst);
 }
 
+static int parse_run_index(const char *token, int *out)
+{
+    char    *end;
+    long    value;
+
+    if (!token || token[0] == '\0')
+        return (-1);
+    value = strtol(token, &end, 10);
+    if (end == token || *end != '\0')
+        return (-1);
+    if (value < 0)
+        return (-1);
+    *out = (int)value;
+    return (0);
+}
+
 static int is_index_filtered(int current_idx, const char *indices_str)
 {
-    if (!indices_str) return 1;
-    char *dup = strdup(indices_str);
-    if (!dup) return 0;
+    char    *dup;
+    char    *token;
+    int     selected;
+    int     target_idx;
 
-    int selected = 0;
-    char *token = strtok(dup, ",");
+    if (!indices_str)
+        return (1);
+    dup = strdup(indices_str);
+    if (!dup)
+        return (0);
+    selected = 0;
+    token = strtok(dup, ",");
     while (token)
     {
-        if (atoi(token) == current_idx) {
+        if (parse_run_index(token, &target_idx) == 0
+            && target_idx == current_idx)
+        {
             selected = 1;
             break;
         }
         token = strtok(NULL, ",");
     }
     free(dup);
-    return selected;
+    return (selected);
 }
 
 static void execute_file_pipeline(const char *filepath, const char *indices_str, const char *title, int is_local, int is_workspace)
@@ -47,21 +70,19 @@ static void execute_file_pipeline(const char *filepath, const char *indices_str,
         fprintf(stderr, "flow run: Cannot access targeted macro footprint.\n");
         return;
     }
-
     FILE *wrapper_fp = fopen(WRAPPER_FILE, "w");
     if (!wrapper_fp) {
         fprintf(stderr, "flow run: Cannot create internal execution payload.\n");
         fclose(macro_fp);
         return;
     }
-
     /* ⚓ AUTO-CONTEXT ALIGNMENT FOR WORKSPACE [0] */
     if (!is_local && is_workspace)
     {
         FILE *path_fp = fopen("/tmp/.flow_recorded_path", "r");
         if (path_fp)
         {
-            char birth_path[512];
+            char birth_path[PATH_MAX];
             if (fgets(birth_path, sizeof(birth_path), path_fp))
             {
                 size_t len = strlen(birth_path);
@@ -101,7 +122,7 @@ static void execute_file_pipeline(const char *filepath, const char *indices_str,
             if (indices_str)
                 fprintf(wrapper_fp, "echo \"[%d] Output:\"\n", current_idx);
             else
-                fprintf(wrapper_fp, "echo \"Flow▶️ [%d]: %s\"\n", current_idx, line);
+                fprintf(wrapper_fp, "echo \"Flow[%d] ▶️ : %s\"\n", current_idx, line);
             
             fprintf(wrapper_fp, "%s\n", line);
             

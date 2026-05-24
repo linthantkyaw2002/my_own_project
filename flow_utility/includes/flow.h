@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <limits.h>
 
 #define STATE_FILE  "/tmp/.flow_active_state"
 #define CACHE_FILE  "/tmp/.flow_record_cache"

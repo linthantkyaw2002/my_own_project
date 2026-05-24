@@ -1,16 +1,39 @@
 #include "flow.h"
+#include <time.h>
+#include <utime.h>
 
 /* 📁 Resolves the permanent user storage workspace path layout */
 char *get_macro_dir_path(void)
 {
-    static char path[512];
+    static char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s%s", getenv("HOME"), MACRO_DIR);
     return path;
 }
 
+static int confirm_build_overwrite(const char *name)
+{
+    char answer[16];
+
+    if (!isatty(STDIN_FILENO))
+    {
+        fprintf(stderr,
+            "flow: Saved build '%s' already exists. Refusing to overwrite without confirmation.\n",
+            name);
+        return (0);
+    }
+    printf("⚠️ Saved build '%s' already exists. Overwrite it? [y/N] ", name);
+    fflush(stdout);
+    if (!fgets(answer, sizeof(answer), stdin))
+        return (0);
+    if (answer[0] == 'y' || answer[0] == 'Y')
+        return (1);
+    printf("flow: overwrite cancelled. Existing build '%s' was kept.\n", name);
+    return (0);
+}
+
 char *get_macro_file_path(const char *name)
 {
-    static char path[512];
+    static char path[PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", get_macro_dir_path(), name);
     return path;
 }
@@ -57,7 +80,7 @@ void append_to_build(const char *name, const char *cmd)
     if (strncmp(cmd, "flow", 4) == 0 && (cmd[4] == '\0' || cmd[4] == ' '))
         return; // Silently drop to prevent recursion
 
-    char path[512];
+    char path[PATH_MAX];
     if (strcmp(name, "current") == 0 || strcmp(name, "0") == 0)
         snprintf(path, sizeof(path), "%s", CACHE_FILE);
     else
@@ -80,8 +103,8 @@ void insert_into_build(const char *name, int index, const char *cmd)
         return;
     }
 
-    char path[512];
-    char tmp_path[512];
+    char path[PATH_MAX];
+    char tmp_path[PATH_MAX];
 
     if (strcmp(name, "current") == 0 || strcmp(name, "0") == 0)
         snprintf(path, sizeof(path), "%s", CACHE_FILE);
@@ -106,6 +129,11 @@ void insert_into_build(const char *name, int index, const char *cmd)
     int current_idx = 0, inserted = 0;
     while (fgets(line, sizeof(line), old_fp))
     {
+        if (strncmp(line, "# dir: ", 7) == 0)
+        {
+            fprintf(new_fp, "%s", line);
+            continue;
+        }
         if (current_idx == index) {
             fprintf(new_fp, "%s\n", cmd);
             inserted = 1;
@@ -128,32 +156,90 @@ void insert_into_build(const char *name, int index, const char *cmd)
     }
 }
 
-static int is_marked_for_deletion(int current_idx, int total_lines, const char *index_str)
+static int parse_delist_index(const char *token, int total_lines, int *out)
 {
-    if (strcmp(index_str, "last") == 0)
-        return (current_idx == total_lines - 1);
+    char    *end;
+    long    value;
 
-    char *dup = strdup(index_str);
-    if (!dup) return 0;
+    if (!token || token[0] == '\0')
+        return (-1);
+    if (strcmp(token, "last") == 0)
+    {
+        if (total_lines <= 0)
+            return (-1);
+        *out = total_lines - 1;
+        return (0);
+    }
+    value = strtol(token, &end, 10);
+    if (end == token || *end != '\0')
+        return (-1);
+    if (value < 0 || value >= total_lines)
+        return (-1);
+    *out = (int)value;
+    return (0);
+}
 
-    int match = 0;
-    char *token = strtok(dup, ",");
+static int validate_delist_query(const char *index_str, int total_lines)
+{
+    char    *dup;
+    char    *token;
+    int     idx;
+
+    if (!index_str || index_str[0] == '\0')
+        return (-1);
+    if (index_str[0] == ',')
+        return (-1);
+    if (index_str[strlen(index_str) - 1] == ',')
+        return (-1);
+    if (strstr(index_str, ",,"))
+        return (-1);
+    dup = strdup(index_str);
+    if (!dup)
+        return (-1);
+    token = strtok(dup, ",");
     while (token)
     {
-        if (atoi(token) == current_idx) {
+        if (parse_delist_index(token, total_lines, &idx) == -1)
+        {
+            free(dup);
+            return (-1);
+        }
+        token = strtok(NULL, ",");
+    }
+    free(dup);
+    return (0);
+}
+
+static int is_marked_for_deletion(int current_idx, int total_lines, const char *index_str)
+{
+    char    *dup;
+    char    *token;
+    int     target_idx;
+    int     match;
+
+    dup = strdup(index_str);
+    if (!dup)
+        return (0);
+    match = 0;
+    token = strtok(dup, ",");
+    while (token)
+    {
+        if (parse_delist_index(token, total_lines, &target_idx) == 0
+            && target_idx == current_idx)
+        {
             match = 1;
             break;
         }
         token = strtok(NULL, ",");
     }
     free(dup);
-    return match;
+    return (match);
 }
 
 void delist_from_build(const char *name, const char *index_str)
 {
-    char path[512];
-    char tmp_path[512];
+    char path[PATH_MAX];
+    char tmp_path[PATH_MAX];
     FILE *fp;
 
     if (strcmp(name, "current") == 0 || strcmp(name, "0") == 0)
@@ -161,7 +247,8 @@ void delist_from_build(const char *name, const char *index_str)
     else
         snprintf(path, sizeof(path), "%s", get_macro_file_path(name));
 
-    if (strcmp(name, "current") != 0 && strcmp(name, "0") != 0 && access(path, F_OK) == -1) {
+    if (strcmp(name, "current") != 0 && strcmp(name, "0") != 0 && access(path, F_OK) == -1) 
+    {
         fprintf(stderr, "flow delist: Target build '%s' does not exist.\n", name);
         return;
     }
@@ -170,12 +257,25 @@ void delist_from_build(const char *name, const char *index_str)
     if (!fp) return;
     char line[1024];
     int total_lines = 0;
+
     while (fgets(line, sizeof(line), fp))
+    {
+        if (strncmp(line, "# dir: ", 7) == 0)
+            continue;
         total_lines++;
+    }   
     fclose(fp);
 
-    if (total_lines == 0) {
-        fprintf(stderr, "flow delist: Target '%s' contains no commands.\n", name);
+    if (total_lines == 0) 
+    {
+    fprintf(stderr, "flow delist: Target '%s' contains no commands.\n", name);
+    return;
+    }
+
+    if (validate_delist_query(index_str, total_lines) == -1)
+    {
+        fprintf(stderr, "flow delist: invalid index syntax or out of bounds '%s'\n", index_str);
+        fprintf(stderr, "Usage: flow delist [buildname] <index/indices/last>\n");
         return;
     }
 
@@ -190,12 +290,22 @@ void delist_from_build(const char *name, const char *index_str)
 
     int current_idx = 0;
     int items_deleted = 0;
+
     while (fgets(line, sizeof(line), old_fp))
     {
-        if (is_marked_for_deletion(current_idx, total_lines, index_str))
-            items_deleted++;
-        else
+        if (strncmp(line, "# dir: ", 7) == 0)
+        {
             fprintf(new_fp, "%s", line);
+            continue;
+        }
+        if (is_marked_for_deletion(current_idx, total_lines, index_str))
+        {
+            items_deleted++;
+        }
+        else
+        {
+            fprintf(new_fp, "%s", line);
+        }
         current_idx++;
     }
     fclose(old_fp);
@@ -209,47 +319,92 @@ void delist_from_build(const char *name, const char *index_str)
         fprintf(stderr, "flow delist: No valid commands found matching deletion query '%s'.\n", index_str);
     }
 }
+static int is_real_command_line(const char *line)
+{
+    int i;
+
+    if (!line || strncmp(line, "# dir: ", 7) == 0)
+        return (0);
+    i = 0;
+    while (line[i] == ' ' || line[i] == '\t' || line[i] == '\n')
+        i++;
+    return (line[i] != '\0');
+}
+
+static int count_command_lines(const char *path)
+{
+    FILE    *fp;
+    char    line[1024];
+    int     count;
+
+    fp = fopen(path, "r");
+    if (!fp)
+        return (0);
+    count = 0;
+    while (fgets(line, sizeof(line), fp))
+    {
+        if (is_real_command_line(line))
+            count++;
+    }
+    fclose(fp);
+    return (count);
+}
 
 void build_macro_file(const char *name)
 {
-    char *dest = get_macro_file_path(name);
-    if (!dest) return;
+    char dest[PATH_MAX];
+    char *resolved;
+    FILE *src_fp;
+    FILE *dst_fp;
+    FILE *path_fp;
+    char birth_path[PATH_MAX];
+    char ch;
 
-    // Fast backup step to build target parent storage spaces
-    mkdir(get_macro_dir_path(), 0755);
-
-    FILE *src_fp = fopen(CACHE_FILE, "r");
-    if (!src_fp)
+    if (!name || name[0] == '\0')
     {
-        fprintf(stderr, "flow: Current workspace [0] is empty. Nothing to build.\n");
+        fprintf(stderr, "flow build: build name cannot be empty.\n");
         return;
     }
-    FILE *dst_fp = fopen(dest, "w");
+    resolved = get_macro_file_path(name);
+    if (!resolved)
+        return;
+    snprintf(dest, sizeof(dest), "%s", resolved);
+    mkdir(get_macro_dir_path(), 0755);
+    if (count_command_lines(CACHE_FILE) == 0)
+    {
+        fprintf(stderr, "flow build: Current workspace [0] is empty. Nothing to build.\n");
+        return;
+    }
+    if (access(dest, F_OK) == 0 && !confirm_build_overwrite(name))
+        return;
+    src_fp = fopen(CACHE_FILE, "r");
+    if (!src_fp)
+    {
+        fprintf(stderr, "flow build: Current workspace [0] is empty. Nothing to build.\n");
+        return;
+    }
+    dst_fp = fopen(dest, "w");
     if (!dst_fp)
     {
         fclose(src_fp);
         perror("flow build failed");
         return;
     }
-
-    FILE *path_fp = fopen("/tmp/.flow_recorded_path", "r");
+    path_fp = fopen("/tmp/.flow_recorded_path", "r");
     if (path_fp)
     {
-        char birth_path[512];
         if (fgets(birth_path, sizeof(birth_path), path_fp))
         {
             size_t len = strlen(birth_path);
+
             if (len > 0 && birth_path[len - 1] == '\n')
                 birth_path[len - 1] = '\0';
             fprintf(dst_fp, "# dir: %s\n", birth_path);
         }
         fclose(path_fp);
     }
-
-    char ch;
     while ((ch = fgetc(src_fp)) != EOF)
         fputc(ch, dst_fp);
-
     fclose(src_fp);
     fclose(dst_fp);
     printf("💾 Current flow compiled successfully to named build: '%s'\n", name);
@@ -263,13 +418,22 @@ void list_workspace(void)
         printf("📝 Current Flow Workspace [0] is empty.\n");
         return;
     }
+
     printf("📝 Current Flow Workspace [0]:\n");
+
     char line[1024];
     int idx = 0;
+
     while (fgets(line, sizeof(line), fp))
     {
+        if (strncmp(line, "# dir: ", 7) == 0)
+            continue;
         printf("[%d] %s", idx++, line);
     }
+
+    if (idx == 0)
+        printf("(empty)\n");
+
     fclose(fp);
 }
 
@@ -322,29 +486,38 @@ void list_named_build(const char *name)
  */
 int remove_build(const char *name)
 {
-    char old_path[512];
-    char bin_dir[512];
-    char new_path[512];
+    char old_path[PATH_MAX];
+    char bin_dir[PATH_MAX];
+    char new_path[PATH_MAX * 2];
     char *home = getenv("HOME");
     char *resolved;
 
-    if (!home) return (1);
-    
-    /* Ensure the hidden trash bin directory exists on host machine */
+    if (!home)
+        return (1);
+    if (!name || name[0] == '\0')
+    {
+        fprintf(stderr, "flow remove: build name cannot be empty.\n");
+        return (1);
+    }
+    mkdir(get_macro_dir_path(), 0755);
     snprintf(bin_dir, sizeof(bin_dir), "%s/.flow_macros/.bin", home);
     mkdir(bin_dir, 0755);
-
     resolved = get_macro_file_path(name);
-    if (!resolved) return (1);
-    strncpy(old_path, resolved, sizeof(old_path));
-
+    if (!resolved)
+        return (1);
+    snprintf(old_path, sizeof(old_path), "%s", resolved);
     snprintf(new_path, sizeof(new_path), "%s/%s", bin_dir, name);
-
+    if (access(old_path, F_OK) == -1)
+    {
+        fprintf(stderr, "flow remove: Saved build '%s' does not exist.\n", name);
+        return (1);
+    }
     if (rename(old_path, new_path) != 0)
     {
         perror("flow remove: failed to archive profile to bin");
         return (1);
     }
+    utime(new_path, NULL);
     printf("🗑️ Macro '%s' moved to Recycling Bin. Restore using 'flow bin restore <index/indices/last>'.\n", name);
     return (0);
 }
@@ -357,7 +530,7 @@ int remove_all_builds(void)
 {
     DIR *dir;
     struct dirent *entry;
-    char macro_dir[512];
+    char macro_dir[PATH_MAX];
     char *home = getenv("HOME");
     int count = 0;
 
@@ -394,7 +567,7 @@ int remove_all_builds(void)
 
 void record_workspace_birth_path(void)
 {
-    char cwd[512];
+    char cwd[PATH_MAX];
     if (getcwd(cwd, sizeof(cwd)) != NULL)
     {
         FILE *fp = fopen("/tmp/.flow_recorded_path", "w");
@@ -406,241 +579,290 @@ void record_workspace_birth_path(void)
     }
 }
 
-/**
- * @brief Sequentially loops through the hidden trash subsystem and prints 
- * available profiles matching a clean indexed layout starting at [0].
- */
+typedef struct s_bin_item
+{
+    char    *name;
+    time_t  deleted_at;
+}   t_bin_item;
+
+static void free_bin_items(t_bin_item *items, int total)
+{
+    int i;
+
+    i = 0;
+    while (i < total)
+    {
+        free(items[i].name);
+        i++;
+    }
+}
+
+static void sort_bin_items_newest_first(t_bin_item *items, int total)
+{
+    int         i;
+    int         j;
+    t_bin_item tmp;
+
+    i = 0;
+    while (i < total)
+    {
+        j = i + 1;
+        while (j < total)
+        {
+            if (items[j].deleted_at > items[i].deleted_at
+                || (items[j].deleted_at == items[i].deleted_at
+                    && strcmp(items[j].name, items[i].name) < 0))
+            {
+                tmp = items[i];
+                items[i] = items[j];
+                items[j] = tmp;
+            }
+            j++;
+        }
+        i++;
+    }
+}
+
+static int load_bin_items(t_bin_item *items, int *total, const char *bin_dir)
+{
+    DIR             *dir;
+    struct dirent   *entry;
+    struct stat      st;
+    char             file_path[PATH_MAX * 2];
+
+    *total = 0;
+    dir = opendir(bin_dir);
+    if (!dir)
+        return (-1);
+    while ((entry = readdir(dir)) != NULL && *total < 256)
+    {
+        if (entry->d_name[0] == '.')
+            continue;
+        snprintf(file_path, sizeof(file_path), "%s/%s", bin_dir, entry->d_name);
+        if (stat(file_path, &st) == -1)
+            continue;
+        items[*total].name = strdup(entry->d_name);
+        if (!items[*total].name)
+            continue;
+        items[*total].deleted_at = st.st_mtime;
+        (*total)++;
+    }
+    closedir(dir);
+    sort_bin_items_newest_first(items, *total);
+    return (0);
+}
+
+static int parse_bin_index(const char *token, int total, int *out)
+{
+    char    *end;
+    long    value;
+
+    if (!token || token[0] == '\0')
+        return (-1);
+    if (strcmp(token, "last") == 0)
+    {
+        if (total <= 0)
+            return (-1);
+        *out = 0;
+        return (0);
+    }
+    value = strtol(token, &end, 10);
+    if (end == token || *end != '\0')
+        return (-1);
+    if (value < 0 || value >= total)
+        return (-1);
+    *out = (int)value;
+    return (0);
+}
+
+static int validate_bin_query(const char *indices_str, int total)
+{
+    char    *copy;
+    char    *token;
+    int     idx;
+
+    if (!indices_str || indices_str[0] == '\0')
+        return (-1);
+    if (indices_str[0] == ',' || indices_str[strlen(indices_str) - 1] == ',')
+        return (-1);
+    if (strstr(indices_str, ",,"))
+        return (-1);
+    copy = strdup(indices_str);
+    if (!copy)
+        return (-1);
+    token = strtok(copy, ",");
+    while (token)
+    {
+        if (parse_bin_index(token, total, &idx) == -1)
+        {
+            free(copy);
+            return (-1);
+        }
+        token = strtok(NULL, ",");
+    }
+    free(copy);
+    return (0);
+}
+
 int list_bin(void)
 {
-    DIR *dir;
-    struct dirent *entry;
-    char bin_dir[512];
-    char *home = getenv("HOME");
-    int idx = 0;
+    char        bin_dir[PATH_MAX];
+    char        *home = getenv("HOME");
+    t_bin_item  items[256];
+    int         total;
+    int         i;
 
-    if (!home) return (1);
+    if (!home)
+        return (1);
     snprintf(bin_dir, sizeof(bin_dir), "%s/.flow_macros/.bin", home);
-    
-    dir = opendir(bin_dir);
-    if (!dir)
+    if (load_bin_items(items, &total, bin_dir) == -1 || total == 0)
     {
         printf("♻️ Recycling Bin is currently empty.\n");
         return (0);
     }
-    
-    while ((entry = readdir(dir)) != NULL)
+    printf("♻️ Archived Garbage Tracks in Recycling Bin (newest first):\n");
+    i = 0;
+    while (i < total)
     {
-        if (entry->d_name[0] == '.')
-            continue;
-        if (idx == 0)
-            printf("♻️ Archived Garbage Tracks in Recycling Bin:\n");
-        printf("[%d] %s\n", idx++, entry->d_name);
+        printf("[%d] %s\n", i, items[i].name);
+        i++;
     }
-    
-    if (idx == 0)
-        printf("♻️ Recycling Bin is currently empty.\n");
-        
-    closedir(dir);
+    free_bin_items(items, total);
     return (0);
 }
 
-/**
- * @brief Parses comma-delimited tokens and handles cross-directory moves 
- * to bring profiles safely back into active workflow visibility arrays.
- */
 int restore_from_bin(const char *indices_str)
 {
-    DIR *dir;
-    struct dirent *entry;
-    char bin_dir[512];
-    char macro_dir[512];
-    char *home = getenv("HOME");
-    char *filenames[256];
-    char *str_copy;
-    char *token;
-    int total_files = 0;
+    char        bin_dir[PATH_MAX];
+    char        macro_dir[PATH_MAX];
+    char        old_file[PATH_MAX * 2];
+    char        new_file[PATH_MAX * 2];
+    char        *home = getenv("HOME");
+    char        *copy;
+    char        *token;
+    t_bin_item  items[256];
+    int         total;
+    int         idx;
 
-    if (!home) return (1);
+    if (!home)
+        return (1);
     snprintf(bin_dir, sizeof(bin_dir), "%s/.flow_macros/.bin", home);
     snprintf(macro_dir, sizeof(macro_dir), "%s/.flow_macros", home);
-
-    dir = opendir(bin_dir);
-    if (!dir)
+    if (load_bin_items(items, &total, bin_dir) == -1 || total == 0)
     {
-        fprintf(stderr, "flow restore: trash tracking framework empty or missing.\n");
+        printf("♻️ Recycling Bin is empty.\n");
+        return (0);
+    }
+    if (validate_bin_query(indices_str, total) == -1)
+    {
+        fprintf(stderr, "flow bin restore: invalid index syntax or out of bounds '%s'\n", indices_str);
+        fprintf(stderr, "Usage: flow bin restore <index/indices/last>\n");
+        free_bin_items(items, total);
         return (1);
     }
-
-    /* Snapshot current file structure state onto stack frames to align index mappings */
-    while ((entry = readdir(dir)) != NULL && total_files < 256)
+    mkdir(macro_dir, 0755);
+    copy = strdup(indices_str);
+    if (!copy)
     {
-        if (entry->d_name[0] == '.')
-            continue;
-        filenames[total_files] = strdup(entry->d_name);
-        total_files++;
+        free_bin_items(items, total);
+        return (1);
     }
-    closedir(dir);
-
-    if (total_files == 0)
+    token = strtok(copy, ",");
+    while (token)
     {
-        printf("♻️ Recycling Bin is empty.\n");
-        return (0);
-    }
-
-    /* Tokenize multi-index arguments step-by-step using string extraction bounds */
-    str_copy = strdup(indices_str);
-    token = strtok(str_copy, ",");
-   while (token != NULL)
-    {
-        int target_idx = -1;
-        
-        // Safely handle the "last" keyword context
-        if (strcmp(token, "last") == 0)
-            target_idx = total_files - 1;
+        parse_bin_index(token, total, &idx);
+        snprintf(old_file, sizeof(old_file), "%s/%s", bin_dir, items[idx].name);
+        snprintf(new_file, sizeof(new_file), "%s/%s", macro_dir, items[idx].name);
+        if (access(new_file, F_OK) == 0)
+            fprintf(stderr, "flow bin restore: live build '%s' already exists. Remove or rename it first.\n", items[idx].name);
+        else if (rename(old_file, new_file) == 0)
+            printf("⏪ Restored macro '%s' back to live library successfully!\n", items[idx].name);
         else
-            target_idx = atoi(token);
-
-        if (target_idx >= 0 && target_idx < total_files)
-        {
-            char old_file[512];
-            char new_file[512];
-
-            snprintf(old_file, sizeof(old_file), "%s/%s", bin_dir, filenames[target_idx]);
-            snprintf(new_file, sizeof(new_file), "%s/%s", macro_dir, filenames[target_idx]);
-
-            if (rename(old_file, new_file) == 0)
-                printf("⏪ Restored macro '%s' back to live library views successfully!\n", filenames[target_idx]);
-            else
-                fprintf(stderr, "flow restore: transmission deadlock moving '%s'\n", filenames[target_idx]);
-        }
-        else
-        {
-            fprintf(stderr, "flow restore: user input index [%d] out of bounds.\n", target_idx);
-        }
+            fprintf(stderr, "flow bin restore: failed moving '%s'\n", items[idx].name);
         token = strtok(NULL, ",");
     }
-
-    /* Release dynamic memory segments cleanly */
-    for (int i = 0; i < total_files; i++)
-        free(filenames[i]);
-    free(str_copy);
+    free(copy);
+    free_bin_items(items, total);
     return (0);
 }
 
-/**
- * @brief Loops through the hidden trash subsystem and hard-unlinks every single
- * file, fully emptying the recycling bin.
- */
 int clear_bin(void)
 {
-    DIR *dir;
-    struct dirent *entry;
-    char bin_dir[512];
-    char file_path[512];
-    char *home = getenv("HOME");
-    int count = 0;
+    char        bin_dir[PATH_MAX];
+    char        file_path[PATH_MAX * 2];
+    char        *home = getenv("HOME");
+    t_bin_item  items[256];
+    int         total;
+    int         i;
+    int         count;
 
-    if (!home) return (1);
+    if (!home)
+        return (1);
     snprintf(bin_dir, sizeof(bin_dir), "%s/.flow_macros/.bin", home);
-
-    dir = opendir(bin_dir);
-    if (!dir)
+    if (load_bin_items(items, &total, bin_dir) == -1 || total == 0)
     {
-        printf("♻️ Recycling Bin is already empty.\n");
+        printf("♻️ Recycling Bin is already empty. Nothing to clear.\n");
         return (0);
     }
-
-    while ((entry = readdir(dir)) != NULL)
+    i = 0;
+    count = 0;
+    while (i < total)
     {
-        /* Shield directory tracking layers (. and ..) from processing attempts */
-        if (entry->d_name[0] == '.')
-            continue;
-
-        snprintf(file_path, sizeof(file_path), "%s/%s", bin_dir, entry->d_name);
+        snprintf(file_path, sizeof(file_path), "%s/%s", bin_dir, items[i].name);
         if (unlink(file_path) == 0)
             count++;
+        i++;
     }
-    closedir(dir);
-
-    printf("💥 Permanent Purge Success! Vaporized %d archived profiles from disk.\n", count);
+    free_bin_items(items, total);
+    printf("💥 Permanent Purge Success! Vaporized %d archived profile(s) from disk.\n", count);
     return (0);
 }
 
-/**
- * @brief Parses comma-delimited strings to snapshot trash files onto stack memory
- * and selectively unlinks individual targeted files out of the recycling bin.
- */
 int remove_from_bin(const char *indices_str)
 {
-    DIR *dir;
-    struct dirent *entry;
-    char bin_dir[512];
-    char *home = getenv("HOME");
-    char *filenames[256];
-    char *str_copy;
-    char *token;
-    int total_files = 0;
+    char        bin_dir[PATH_MAX];
+    char        target_path[PATH_MAX * 2];
+    char        *home = getenv("HOME");
+    char        *copy;
+    char        *token;
+    t_bin_item  items[256];
+    int         total;
+    int         idx;
 
-    if (!home) return (1);
+    if (!home)
+        return (1);
     snprintf(bin_dir, sizeof(bin_dir), "%s/.flow_macros/.bin", home);
-
-    dir = opendir(bin_dir);
-    if (!dir)
+    if (load_bin_items(items, &total, bin_dir) == -1 || total == 0)
     {
         printf("♻️ Recycling Bin is empty.\n");
         return (0);
     }
-
-    /* Index and map current files available in trash onto local stack frames */
-    while ((entry = readdir(dir)) != NULL && total_files < 256)
+    if (validate_bin_query(indices_str, total) == -1)
     {
-        if (entry->d_name[0] == '.')
-            continue;
-        filenames[total_files] = strdup(entry->d_name);
-        total_files++;
+        fprintf(stderr, "flow bin remove: invalid index syntax or out of bounds '%s'\n", indices_str);
+        fprintf(stderr, "Usage: flow bin remove <index/indices/last>\n");
+        free_bin_items(items, total);
+        return (1);
     }
-    closedir(dir);
-
-    if (total_files == 0)
+    copy = strdup(indices_str);
+    if (!copy)
     {
-        printf("♻️ Recycling Bin is empty.\n");
-        return (0);
+        free_bin_items(items, total);
+        return (1);
     }
-
-    /* Tokenize target arguments step-by-step using dynamic string splitting limits */
-    str_copy = strdup(indices_str);
-    token = strtok(str_copy, ",");
-    while (token != NULL)
+    token = strtok(copy, ",");
+    while (token)
     {
-        int target_idx = -1;
-        
-        // Safely handle the "last" keyword context
-        if (strcmp(token, "last") == 0)
-            target_idx = total_files - 1;
+        parse_bin_index(token, total, &idx);
+        snprintf(target_path, sizeof(target_path), "%s/%s", bin_dir, items[idx].name);
+        if (unlink(target_path) == 0)
+            printf("🔥 Permanently erased tracking asset: '%s'\n", items[idx].name);
         else
-            target_idx = atoi(token);
-
-        if (target_idx >= 0 && target_idx < total_files)
-        {
-            char target_path[512];
-            snprintf(target_path, sizeof(target_path), "%s/%s", bin_dir, filenames[target_idx]);
-
-            if (unlink(target_path) == 0)
-                printf("🔥 Permanently erased tracking asset: '%s'\n", filenames[target_idx]);
-            else
-                fprintf(stderr, "flow bin remove: write deadlock on filename '%s'\n", filenames[target_idx]);
-        }
-        else
-        {
-            fprintf(stderr, "flow bin remove: parameter string item index [%d] out of bounds.\n", target_idx);
-        }
+            fprintf(stderr, "flow bin remove: failed to erase '%s'\n", items[idx].name);
         token = strtok(NULL, ",");
     }
-
-    /* Free snapshot string tracking slices cleanly */
-    for (int i = 0; i < total_files; i++)
-        free(filenames[i]);
-    free(str_copy);
+    free(copy);
+    free_bin_items(items, total);
     return (0);
 }
 
@@ -650,46 +872,80 @@ int remove_from_bin(const char *indices_str)
  */
 int join_builds(const char *b1, const char *b2, const char *newb)
 {
-    char path1[512];
-    char path2[512];
-    char path_new[512];
+    char path1[PATH_MAX];
+    char path2[PATH_MAX];
+    char path_new[PATH_MAX];
     char line[1024];
     char *resolved;
+    FILE *f1;
+    FILE *f2;
+    FILE *fn;
 
-    /* Securely pull separate absolute path copies to bypass static buffer overwrites */
+    if (!b1 || !b2 || !newb || newb[0] == '\0')
+    {
+        fprintf(stderr, "flow join: invalid build name.\n");
+        return (1);
+    }
+    if (strcmp(newb, b1) == 0 || strcmp(newb, b2) == 0)
+    {
+        fprintf(stderr,
+            "flow join: destination build cannot be the same as source build.\n");
+        return (1);
+    }
     resolved = get_macro_file_path(b1);
-    if (!resolved) return (1);
-    strncpy(path1, resolved, sizeof(path1));
-
+    if (!resolved)
+        return (1);
+    snprintf(path1, sizeof(path1), "%s", resolved);
     resolved = get_macro_file_path(b2);
-    if (!resolved) return (1);
-    strncpy(path2, resolved, sizeof(path2));
-
+    if (!resolved)
+        return (1);
+    snprintf(path2, sizeof(path2), "%s", resolved);
     resolved = get_macro_file_path(newb);
-    if (!resolved) return (1);
-    strncpy(path_new, resolved, sizeof(path_new));
-
-    FILE *f1 = fopen(path1, "r");
-    if (!f1) { perror("flow join: source build 1 not found"); return (1); }
-
-    FILE *f2 = fopen(path2, "r");
-    if (!f2) { fclose(f1); perror("flow join: source build 2 not found"); return (1); }
-
-    FILE *fn = fopen(path_new, "w");
-    if (!fn) { fclose(f1); fclose(f2); perror("flow join: failed to build target"); return (1); }
-
-    /* Stream the complete contents of macro 1 into the new layout */
+    if (!resolved)
+        return (1);
+    snprintf(path_new, sizeof(path_new), "%s", resolved);
+    if (access(path1, F_OK) == -1)
+    {
+        fprintf(stderr, "flow join: source build '%s' does not exist.\n", b1);
+        return (1);
+    }
+    if (access(path2, F_OK) == -1)
+    {
+        fprintf(stderr, "flow join: source build '%s' does not exist.\n", b2);
+        return (1);
+    }
+    if (access(path_new, F_OK) == 0 && !confirm_build_overwrite(newb))
+        return (1);
+    f1 = fopen(path1, "r");
+    if (!f1)
+    {
+        perror("flow join: source build 1 not found");
+        return (1);
+    }
+    f2 = fopen(path2, "r");
+    if (!f2)
+    {
+        fclose(f1);
+        perror("flow join: source build 2 not found");
+        return (1);
+    }
+    fn = fopen(path_new, "w");
+    if (!fn)
+    {
+        fclose(f1);
+        fclose(f2);
+        perror("flow join: failed to build target");
+        return (1);
+    }
     while (fgets(line, sizeof(line), f1))
         fprintf(fn, "%s", line);
-
-    /* Append the complete contents of macro 2 directly below it */
     while (fgets(line, sizeof(line), f2))
         fprintf(fn, "%s", line);
-
     fclose(f1);
     fclose(f2);
     fclose(fn);
-    printf("🔀 Workflows '%s' and '%s' joined successfully into '%s'\n", b1, b2, newb);
+    printf("🔀 Workflows '%s' and '%s' joined successfully into '%s'\n",
+        b1, b2, newb);
     return (0);
 }
 
@@ -699,29 +955,54 @@ int join_builds(const char *b1, const char *b2, const char *newb)
  */
 int copy_build(const char *oldb, const char *newb)
 {
-    char path_old[512];
-    char path_new[512];
+    char path_old[PATH_MAX];
+    char path_new[PATH_MAX];
     char line[1024];
     char *resolved;
+    FILE *f_old;
+    FILE *f_new;
 
-    /* Isolate paths onto the local stack frames immediately */
+    if (!oldb || !newb || newb[0] == '\0')
+    {
+        fprintf(stderr, "flow copy: invalid build name.\n");
+        return (1);
+    }
+    if (strcmp(oldb, newb) == 0)
+    {
+        fprintf(stderr,
+            "flow copy: destination build cannot be the same as source build.\n");
+        return (1);
+    }
     resolved = get_macro_file_path(oldb);
-    if (!resolved) return (1);
-    strncpy(path_old, resolved, sizeof(path_old));
-
+    if (!resolved)
+        return (1);
+    snprintf(path_old, sizeof(path_old), "%s", resolved);
     resolved = get_macro_file_path(newb);
-    if (!resolved) return (1);
-    strncpy(path_new, resolved, sizeof(path_new));
-
-    FILE *f_old = fopen(path_old, "r");
-    if (!f_old) { perror("flow copy: source profile not found"); return (1); }
-
-    FILE *f_new = fopen(path_new, "w");
-    if (!f_new) { fclose(f_old); perror("flow copy: failed to initialize destination"); return (1); }
-
+    if (!resolved)
+        return (1);
+    snprintf(path_new, sizeof(path_new), "%s", resolved);
+    if (access(path_old, F_OK) == -1)
+    {
+        fprintf(stderr, "flow copy: source build '%s' does not exist.\n", oldb);
+        return (1);
+    }
+    if (access(path_new, F_OK) == 0 && !confirm_build_overwrite(newb))
+        return (1);
+    f_old = fopen(path_old, "r");
+    if (!f_old)
+    {
+        perror("flow copy: source profile not found");
+        return (1);
+    }
+    f_new = fopen(path_new, "w");
+    if (!f_new)
+    {
+        fclose(f_old);
+        perror("flow copy: failed to initialize destination");
+        return (1);
+    }
     while (fgets(line, sizeof(line), f_old))
         fprintf(f_new, "%s", line);
-
     fclose(f_old);
     fclose(f_new);
     printf("📋 Workflow '%s' copied successfully to '%s'\n", oldb, newb);
