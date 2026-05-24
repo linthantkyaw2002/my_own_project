@@ -166,8 +166,9 @@ flow list
 ```
 
 Expected output when no commands are recorded yet: 
+```
 📝 Current Flow Workspace [0] is empty.
-
+```
 ---
 
 ## Uninstallation
@@ -524,9 +525,9 @@ flow build test
 If a build with the same name already exists, Flow asks for confirmation before overwriting it.
 
 Example:
-
+```
 ⚠️ Saved build 'test' already exists. Overwrite it? [y/N]
-
+```
 Flow also prevents empty workspaces from being saved as builds.
 
 ---
