@@ -665,10 +665,10 @@ flow insert 1 "echo inserted"
 ```
 
 Example before:
-
+```
 [0] make
 [1] ./program
-
+```
 
 After:
 ```
